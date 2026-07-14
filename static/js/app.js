@@ -1,7 +1,7 @@
 import { state } from './state.js';
-import { showToast, showBanner, showUpdateToast } from './ui.js';
+import { showToast, showBanner, showUpdateToast, logMessage } from './ui.js';
 import { syncWithDisk, parseCodeOnServer, switchActiveFile } from './editor.js';
-import { initializeGraph, updateGraphView, updateGraphViewDebounced, startStabilization, render3DGraph, resetHighlight, highlightNodeConnections } from './graph.js';
+import { initializeGraph, updateGraphView, updateGraphViewDebounced, startStabilization, resetHighlight, highlightNodeConnections } from './graph.js';
 
 // Monaco Editor Loader Setup
 require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
@@ -42,6 +42,9 @@ async function initApp() {
         state.activeFile = state.config.target_file;
         document.getElementById('target-filename').textContent = state.activeFile;
 
+        // Apply defaults from config file
+        applyDefaults(state.config.defaults || {});
+
         // Load initial code and graph
         await syncWithDisk();
 
@@ -69,11 +72,13 @@ function setupSSE() {
         badge.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
         badge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
         badgeText.textContent = 'Live Syncing';
+        logMessage("📡 Connected to Python server. Event stream open.", "system");
     };
 
     eventSource.onmessage = async (event) => {
         if (event.data === 'updated') {
             showToast("🔄 Workspace file changed. Updating...");
+            logMessage("🔄 Workspace file changed. Syncing code from disk...", "system");
             await syncWithDisk();
             return;
         }
@@ -83,6 +88,9 @@ function setupSSE() {
                 state.lastGraphData = payload;
                 updateGraphViewDebounced(payload);
                 showUpdateToast();
+                
+                const uCount = payload.nodes ? payload.nodes.filter(n => n.is_defined && !n.is_class && n.id !== '<module>').length : 0;
+                logMessage(`✅ Parsed AST overlays successfully. Defined Functions: ${uCount}`, "info");
 
                 // Acknowledge update processed to the backend
                 fetch('/api/ack', { method: 'POST' }).catch(err => {
@@ -100,6 +108,7 @@ function setupSSE() {
         badge.style.backgroundColor = 'rgba(244, 63, 94, 0.1)';
         badge.style.borderColor = 'rgba(244, 63, 94, 0.2)';
         badgeText.textContent = 'Offline';
+        logMessage("❌ Server connection lost. Visualizer dashboard is offline.", "error");
     };
 }
 
@@ -120,10 +129,6 @@ function registerToolbarListeners() {
 
     // Stable Layout Button Listener
     document.getElementById('stable-layout-btn').addEventListener('click', function () {
-        if (state.is3DActive) {
-            showToast("ℹ️ Stabilization is only supported in 2D layouts");
-            return;
-        }
         startStabilization();
     });
 
@@ -164,66 +169,44 @@ function registerToolbarListeners() {
         }
     });
 
-    // View Level Selector Changes (Function vs Module vs 3D Graph)
+    // View Level Selector Changes (Function vs Module vs TensorBoard Graph)
     document.getElementById('view-level-select').addEventListener('change', function (e) {
         state.viewLevel = e.target.value;
 
-        const networkEl = document.getElementById('network-canvas');
-        const canvas3dEl = document.getElementById('graph-3d-canvas');
         const colorSelect = document.getElementById('color-mode-select');
 
-        if (state.viewLevel === '3d') {
-            state.is3DActive = true;
-            networkEl.style.display = 'none';
-            canvas3dEl.style.display = 'block';
+        if (state.viewLevel === 'module') {
             colorSelect.disabled = true;
             colorSelect.style.opacity = 0.5;
-            showToast("🌐 Switched to 3D Force Graph");
-            if (state.lastGraphData) {
-                render3DGraph(state.lastGraphData);
-            }
+            showToast("📂 Switched to Module Graph");
+        } else if (state.viewLevel === 'tensorboard') {
+            colorSelect.disabled = true;
+            colorSelect.style.opacity = 0.5;
+            showToast("📊 Switched to TensorBoard Graph");
+            const layoutSelect = document.getElementById('layout-select');
+            layoutSelect.value = 'hierarchical-tb';
+            state.currentLayout = 'hierarchical-tb';
+            state.network.setOptions({
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        nodeSpacing: 100,
+                        treeSpacing: 100,
+                        levelSpacing: 100
+                    }
+                },
+                physics: { enabled: false }
+            });
         } else {
-            state.is3DActive = false;
-            networkEl.style.display = 'block';
-            canvas3dEl.style.display = 'none';
-            canvas3dEl.innerHTML = '';
-            if (state.graph3d) {
-                state.graph3d = null;
-            }
+            colorSelect.disabled = false;
+            colorSelect.style.opacity = 1.0;
+            showToast("📂 Switched to Function Graph");
+        }
 
-            if (state.viewLevel === 'module') {
-                colorSelect.disabled = true;
-                colorSelect.style.opacity = 0.5;
-                showToast("📂 Switched to Module Graph");
-            } else if (state.viewLevel === 'tensorboard') {
-                colorSelect.disabled = true;
-                colorSelect.style.opacity = 0.5;
-                showToast("📊 Switched to TensorBoard Graph");
-                const layoutSelect = document.getElementById('layout-select');
-                layoutSelect.value = 'hierarchical-tb';
-                state.currentLayout = 'hierarchical-tb';
-                state.network.setOptions({
-                    layout: {
-                        hierarchical: {
-                            enabled: true,
-                            direction: 'UD',
-                            sortMethod: 'directed',
-                            nodeSpacing: 100,
-                            treeSpacing: 100,
-                            levelSpacing: 100
-                        }
-                    },
-                    physics: { enabled: false }
-                });
-            } else {
-                colorSelect.disabled = false;
-                colorSelect.style.opacity = 1.0;
-                showToast("📂 Switched to Function Graph");
-            }
-
-            if (state.lastGraphData) {
-                updateGraphView(state.lastGraphData);
-            }
+        if (state.lastGraphData) {
+            updateGraphView(state.lastGraphData);
         }
     });
 
@@ -300,4 +283,157 @@ function registerToolbarListeners() {
             highlightNodeConnections(matchedNode.id);
         }
     });
+
+    // Activity Bar Tab - Explorer Layout
+    document.getElementById('btn-tab-explorer').addEventListener('click', function() {
+        document.getElementById('btn-tab-explorer').classList.add('active');
+        document.getElementById('btn-tab-analytics').classList.remove('active');
+        
+        const workspace = document.getElementById('workspace-splitter');
+        workspace.className = 'workspace-area';
+        
+        const consoleBar = document.getElementById('bottom-console');
+        consoleBar.classList.remove('open');
+        state.isConsoleOpen = false;
+        showToast("📂 Switched to Workspace layout");
+    });
+
+    // Activity Bar Tab - Analytics Layout
+    document.getElementById('btn-tab-analytics').addEventListener('click', function() {
+        document.getElementById('btn-tab-explorer').classList.remove('active');
+        document.getElementById('btn-tab-analytics').classList.add('active');
+        
+        const workspace = document.getElementById('workspace-splitter');
+        workspace.className = 'workspace-area maximized-graph';
+        
+        const consoleBar = document.getElementById('bottom-console');
+        consoleBar.classList.add('open');
+        state.isConsoleOpen = true;
+        
+        document.getElementById('tab-health').click();
+        showToast("📊 Switched to Analytics & Health layout");
+    });
+
+    // Activity Bar Bottom - Toggle Console Icon
+    document.getElementById('btn-toggle-console').addEventListener('click', function() {
+        document.getElementById('btn-collapse-console').click();
+    });
+
+    // Maximize Editor (Hide Graph) toggle
+    document.getElementById('btn-editor-split').addEventListener('click', function() {
+        const workspace = document.getElementById('workspace-splitter');
+        if (workspace.classList.contains('maximized-graph')) {
+            workspace.className = 'workspace-area';
+            showToast("🖥️ Split-screen mode");
+        } else {
+            workspace.className = 'workspace-area maximized-graph';
+            showToast("🔍 Expanded call graph canvas");
+        }
+    });
+
+    // Maximize Graph (Hide Editor) toggle
+    document.getElementById('btn-graph-split').addEventListener('click', function() {
+        const workspace = document.getElementById('workspace-splitter');
+        if (workspace.classList.contains('maximized-editor')) {
+            workspace.className = 'workspace-area';
+            showToast("🖥️ Split-screen mode");
+        } else {
+            workspace.className = 'workspace-area maximized-editor';
+            showToast("🔍 Expanded code editor panel");
+        }
+    });
+
+    // Close Node Inspector Drawer
+    document.getElementById('btn-close-inspector').addEventListener('click', function() {
+        import('./ui.js').then(ui => ui.updateInspector(null));
+        import('./graph.js').then(graph => graph.resetHighlight());
+        if (state.network) {
+            state.network.selectNodes([]);
+        }
+    });
+
+    // Console Pane Switching
+    ['health', 'metadata', 'logs'].forEach(tab => {
+        document.getElementById(`tab-${tab}`).addEventListener('click', function() {
+            ['health', 'metadata', 'logs'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.remove('active');
+                document.getElementById(`pane-${t}`).classList.remove('active');
+            });
+            this.classList.add('active');
+            document.getElementById(`pane-${tab}`).classList.add('active');
+            
+            const consoleBar = document.getElementById('bottom-console');
+            if (!state.isConsoleOpen) {
+                consoleBar.classList.add('open');
+                state.isConsoleOpen = true;
+            }
+        });
+    });
+
+    // Collapse / Expand Console Drawer
+    document.getElementById('btn-collapse-console').addEventListener('click', function(e) {
+        e.stopPropagation();
+        const consoleBar = document.getElementById('bottom-console');
+        state.isConsoleOpen = !state.isConsoleOpen;
+        if (state.isConsoleOpen) {
+            consoleBar.classList.add('open');
+        } else {
+            consoleBar.classList.remove('open');
+        }
+    });
+
+    // Hotkey Ctrl + ` to toggle bottom console
+    window.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === '`') {
+            e.preventDefault();
+            document.getElementById('btn-collapse-console').click();
+        }
+    });
+}
+
+function applyDefaults(defaults) {
+    // 1. Libs (External Calls)
+    if (defaults.libs === 'off' || defaults.libs === false) {
+        state.showExternalCalls = false;
+        document.getElementById('toggle-external-btn').classList.remove('active');
+    } else {
+        state.showExternalCalls = true;
+        document.getElementById('toggle-external-btn').classList.add('active');
+    }
+
+    // 2. Physics
+    if (defaults.physics === 'off' || defaults.physics === false) {
+        state.isPhysicsEnabled = false;
+        document.getElementById('toggle-physics-btn').classList.remove('active');
+    } else {
+        state.isPhysicsEnabled = true;
+        document.getElementById('toggle-physics-btn').classList.add('active');
+    }
+
+    // 3. Layout Selector
+    if (defaults.layout) {
+        state.currentLayout = defaults.layout;
+        document.getElementById('layout-select').value = defaults.layout;
+    }
+
+    // 4. View Level
+    if (defaults.view) {
+        state.viewLevel = defaults.view;
+        document.getElementById('view-level-select').value = defaults.view;
+        
+        const colorSelect = document.getElementById('color-mode-select');
+        if (state.viewLevel === 'module' || state.viewLevel === 'tensorboard') {
+            colorSelect.disabled = true;
+            colorSelect.style.opacity = 0.5;
+        } else {
+            colorSelect.disabled = false;
+            colorSelect.style.opacity = 1.0;
+        }
+    }
+
+    // 5. Color Mode
+    if (defaults.color_mode) {
+        state.activeColorMode = defaults.color_mode;
+        document.getElementById('color-mode-select').value = defaults.color_mode;
+    }
 }

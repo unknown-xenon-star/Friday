@@ -18,14 +18,35 @@ def serve_index():
 @app.route('/api/config')
 def get_config():
     """
-    Returns configuration properties, including target file and workspace dir.
+    Returns configuration properties, including target file, workspace dir, and default preferences.
     """
+    import json
     target = current_app.config.get('TARGET_FILE', 'main.py')
     workspace = current_app.config.get('WORKSPACE_DIR', '.')
+    
+    defaults = {
+        "libs": "on",
+        "physics": "on",
+        "layout": "spring",
+        "view": "function",
+        "color_mode": "standard"
+    }
+    
+    config_file_path = os.path.join(workspace, 'friday.json')
+    if os.path.exists(config_file_path):
+        try:
+            with open(config_file_path, 'r', encoding='utf-8') as f:
+                user_config = json.load(f)
+                if isinstance(user_config, dict) and "defaults" in user_config:
+                    defaults.update(user_config["defaults"])
+        except Exception as e:
+            print(f"Error loading configuration file: {e}")
+            
     return jsonify({
         "target_file": target,
         "target_file_basename": os.path.basename(target),
-        "workspace_dir": os.path.abspath(workspace)
+        "workspace_dir": os.path.abspath(workspace),
+        "defaults": defaults
     })
 
 @app.route('/api/file-content')

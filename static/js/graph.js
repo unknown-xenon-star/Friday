@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { showToast, showBanner, hideBanner } from './ui.js';
+import { showToast, showBanner, hideBanner, updateInspector, updateConsoleStats, updateConsoleHealth } from './ui.js';
 import { switchActiveFile } from './editor.js';
 
 export function initializeGraph() {
@@ -112,12 +112,17 @@ export function initializeGraph() {
     state.network.on("selectNode", function (params) {
         if (params.nodes.length > 0) {
             highlightNodeConnections(params.nodes[0]);
+            const node = state.nodesDataSet.get(params.nodes[0]);
+            if (node) {
+                updateInspector(node);
+            }
         }
     });
 
     // Node Deselection reset highlight
     state.network.on("deselectNode", function (params) {
         resetHighlight();
+        updateInspector(null);
     });
 
     // Layout Stabilization Listeners
@@ -154,10 +159,18 @@ export function updateGraphView(graphData) {
         hideBanner();
     }
 
-    // If 3D view is active, delegate to 3D renderer instead
-    if (state.is3DActive) {
-        render3DGraph(graphData);
-        return;
+
+
+    // Automatically pause physics during batch background updates to save user's CPU and prevent UI freezing
+    const pendingCount = typeof graphData.pending_updates === 'number' ? graphData.pending_updates : 0;
+    if (pendingCount > 0) {
+        if (state.network && state.currentLayout === 'spring') {
+            state.network.setOptions({ physics: { enabled: false } });
+        }
+    } else {
+        if (state.network && state.currentLayout === 'spring' && state.isPhysicsEnabled) {
+            state.network.setOptions({ physics: { enabled: true } });
+        }
     }
 
     // Filter and aggregate nodes and edges
@@ -593,6 +606,10 @@ export function updateGraphView(graphData) {
     styledEdges.forEach(edge => {
         state.edgesDataSet.update(edge);
     });
+
+    // Update bottom panel diagnostics
+    updateConsoleStats(graphData);
+    updateConsoleHealth(graphData);
 }
 
 let pendingUpdatePayload = null;
@@ -743,136 +760,7 @@ export function adjustOpacity(colorStr, opacity) {
     return colorStr;
 }
 
-// 3D Force Graph Renderer
-export function render3DGraph(graphData) {
-    const container = document.getElementById('graph-3d-canvas');
-    container.innerHTML = '';
 
-    // Filter external calls if toggle is off
-    let nodes = graphData.nodes;
-    let edges = graphData.edges;
-    if (!state.showExternalCalls) {
-        nodes = nodes.filter(n => n.is_defined || n.id.endsWith('.<module>'));
-        const ids = new Set(nodes.map(n => n.id));
-        edges = edges.filter(e => ids.has(e.from) && ids.has(e.to));
-    }
-
-    // Build 3d-force-graph data format
-    const gNodes = nodes.map(n => {
-        let color = '#475569';  // external default
-        let size = 4;
-        if (n.id.endsWith('.<module>')) {
-            color = '#64748b';
-            size = 6;
-        } else if (n.is_class) {
-            color = '#10b981';
-            size = 8;
-        } else if (n.is_defined) {
-            const c = n.complexity || 1;
-            if (c > 7)       color = '#ef4444';
-            else if (c >= 4) color = '#f59e0b';
-            else             color = '#6366f1';
-            size = Math.max(4, Math.min(12, (n.loc || 5) / 5));
-            if (n.is_unused) color = '#f43f5e';
-        }
-        return {
-            id: n.id,
-            label: n.label || n.id,
-            color: color,
-            size: size,
-            filepath: n.filepath,
-            lineno: n.lineno,
-            is_defined: n.is_defined,
-            is_class: n.is_class,
-            complexity: n.complexity,
-            loc: n.loc,
-            is_unused: n.is_unused
-        };
-    });
-
-    const nodeIds = new Set(gNodes.map(n => n.id));
-
-    const gLinks = edges
-        .filter(e => e.type === 'call' && nodeIds.has(e.from) && nodeIds.has(e.to))
-        .map(e => ({
-            source: e.from,
-            target: e.to,
-            value: e.value,
-            type: e.type
-        }));
-
-    // Also add decorator and containment links
-    edges.filter(e => (e.type === 'decorator' || e.type === 'containment') && nodeIds.has(e.from) && nodeIds.has(e.to))
-        .forEach(e => {
-            gLinks.push({
-                source: e.from,
-                target: e.to,
-                value: e.value,
-                type: e.type
-            });
-        });
-
-    state.graph3d = ForceGraph3D()(container)
-        .backgroundColor('#050810')
-        .graphData({ nodes: gNodes, links: gLinks })
-        .nodeLabel(node => {
-            let label = `<div style="font-family: Inter, sans-serif; padding: 6px 10px; background: rgba(15,23,42,0.95); border: 1px solid rgba(99,102,241,0.3); border-radius: 8px; color: #f3f4f6; font-size: 13px; max-width: 260px;">`;
-            label += `<b style="color: ${node.color}">${node.label}</b>`;
-            if (node.is_class) {
-                label += `<br/><span style="color:#9ca3af">Class definition</span>`;
-            } else if (node.is_defined) {
-                label += `<br/><span style="color:#9ca3af">Function (line ${node.lineno || '?'})</span>`;
-                if (node.loc) label += `<br/>LOC: ${node.loc}`;
-                if (node.complexity) label += ` &middot; Complexity: ${node.complexity}`;
-                if (node.is_unused) label += `<br/><span style="color:#f43f5e">⚠️ Unused / Dead Code</span>`;
-            } else {
-                label += `<br/><span style="color:#64748b">External call</span>`;
-            }
-            label += `</div>`;
-            return label;
-        })
-        .nodeColor(node => node.color)
-        .nodeVal(node => node.size)
-        .nodeOpacity(0.92)
-        .linkColor(link => {
-            if (link.type === 'decorator') return 'rgba(250, 204, 21, 0.4)';
-            if (link.type === 'containment') return 'rgba(148, 163, 184, 0.15)';
-            return 'rgba(99, 102, 241, 0.25)';
-        })
-        .linkWidth(link => {
-            if (link.type === 'containment') return 0.3;
-            return Math.min(3, link.value * 0.8);
-        })
-        .linkDirectionalParticles(link => link.type === 'call' ? 2 : 0)
-        .linkDirectionalParticleWidth(1.5)
-        .linkDirectionalParticleSpeed(0.005)
-        .linkDirectionalParticleColor(link => 'rgba(129,140,248,0.7)')
-        .linkDirectionalArrowLength(link => link.type === 'containment' ? 0 : 3.5)
-        .linkDirectionalArrowRelPos(1)
-        .onNodeClick(node => {
-            if (node.filepath && node.is_defined) {
-                if (node.filepath !== state.activeFile) {
-                    switchActiveFile(node.filepath, node.lineno);
-                } else if (node.lineno) {
-                    state.editor.revealLineInCenter(node.lineno);
-                    state.editor.setPosition({ lineNumber: node.lineno, column: 1 });
-                    state.editor.focus();
-                    showToast(`📍 Jumped to <code>${node.label}</code> on line ${node.lineno}`);
-                }
-            }
-        })
-        .warmupTicks(80)
-        .cooldownTime(3000);
-
-    // Responsive resize
-    const resizeObserver = new ResizeObserver(() => {
-        if (state.graph3d && state.is3DActive) {
-            state.graph3d.width(container.clientWidth);
-            state.graph3d.height(container.clientHeight);
-        }
-    });
-    resizeObserver.observe(container);
-}
 
 export function startStabilization() {
     if (state.isStabilizing) return;

@@ -12,8 +12,6 @@ export const state = {
     activeFile: '',
     viewLevel: 'function',
     activeColorMode: 'standard',
-    graph3d: null,
-    is3DActive: false,
     activeUpdateToast: null,
     updateToastCount: 0,
     updateToastTimer: null,

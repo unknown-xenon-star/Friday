@@ -8,13 +8,12 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
     <!-- vis-network CDN -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
 
-    <!-- 3D Force Graph CDN (Three.js based) -->
-    <script src="https://unpkg.com/3d-force-graph@1"></script>
+
 
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
@@ -25,6 +24,7 @@
 
 <body>
 
+    <!-- Header bar -->
     <header>
         <div class="logo-area">
             <div class="logo-icon">F</div>
@@ -44,135 +44,234 @@
         </div>
     </header>
 
-    <div class="main-container">
-        <!-- Left Panel: Code Editor -->
-        <div class="panel" id="left-panel">
-            <div class="panel-header">
-                <span>Source Code</span>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Edits update graph in real-time</span>
+    <!-- Main visual workspace -->
+    <div class="main-layout">
+        <!-- Sidebar Activity Bar -->
+        <aside class="activity-bar">
+            <div class="activity-top">
+                <button class="activity-icon active" id="btn-tab-explorer" title="Project Workspace">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </button>
+                <button class="activity-icon" id="btn-tab-analytics" title="Project Analysis & Health">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                </button>
             </div>
-            <div class="editor-wrapper">
-                <div id="editor-container"></div>
+            <div class="activity-bottom">
+                <button class="activity-icon" id="btn-toggle-console" title="Toggle Console Bar (Ctrl+`)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="2" y1="10" x2="22" y2="10"></line>
+                    </svg>
+                </button>
             </div>
-        </div>
+        </aside>
 
-        <!-- Right Panel: Interactive Graph -->
-        <div class="panel" id="right-panel">
-            <div class="panel-header">
-                <span>Interactive Call Graph</span>
-                <span>Double-click node to jump to source</span>
-            </div>
-            <div class="canvas-wrapper">
-                <div id="network-canvas"></div>
-                <div id="graph-3d-canvas"></div>
-
-                <!-- Progress Overlay -->
-                <div id="stabilization-overlay" class="progress-overlay" style="display: none;">
-                    <div class="progress-box">
-                        <div class="progress-title">Stabilizing Graph Layout...</div>
-                        <div class="progress-bar-container">
-                            <div id="stabilization-progress-bar" class="progress-bar" style="width: 0%;"></div>
+        <!-- Dynamic Panels Wrapper -->
+        <div class="workspace-wrapper">
+            <div class="workspace-area" id="workspace-splitter">
+                <!-- Left Panel: Code Editor -->
+                <div class="panel" id="left-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Source Code</span>
+                        <div class="panel-actions">
+                            <button class="header-action-btn" id="btn-editor-split" title="Maximize Visualizer Graph">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                                </svg>
+                            </button>
                         </div>
-                        <div id="stabilization-progress-text" class="progress-text">0%</div>
+                    </div>
+                    <div class="editor-wrapper">
+                        <div id="editor-container"></div>
                     </div>
                 </div>
 
-                <!-- Floating Toolbar -->
-                <div class="controls-toolbar">
-                    <!-- Layout direction selection -->
-                    <select id="layout-select" class="tool-select" title="Switch layout formats">
-                        <option value="spring">Spring Force</option>
-                        <option value="hierarchical-tb">Top-Down</option>
-                        <option value="hierarchical-lr">Left-Right</option>
-                    </select>
-
-                    <!-- View Level selector -->
-                    <select id="view-level-select" class="tool-select" title="Switch between function-level calls and file-level modules">
-                        <option value="function">Function Graph</option>
-                        <option value="module">Module Graph</option>
-                        <option value="tensorboard">TensorBoard Graph</option>
-                        <option value="3d">3D Force Graph</option>
-                    </select>
-
-                    <!-- Color Mode selector -->
-                    <select id="color-mode-select" class="tool-select" title="Toggle node color theme (Types vs Complexity heatmaps)">
-                        <option value="standard">Standard Types</option>
-                        <option value="complexity">Complexity Heatmap</option>
-                    </select>
-
-                    <!-- Toggle Physics -->
-                    <button id="toggle-physics-btn" class="tool-btn active" title="Toggle Physics Simulation">
-                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                        </svg>
-                        Physics
-                    </button>
-
-                    <!-- Stable Layout Button -->
-                    <button id="stable-layout-btn" class="tool-btn" title="Calculate stable layout positions">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
-                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
-                            <path d="M12 6v6l4 2"></path>
-                        </svg>
-                        Stable
-                    </button>
-
-                    <!-- Toggle External Library Calls -->
-                    <button id="toggle-external-btn" class="tool-btn active" title="Toggle External Library Calls">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="2" y1="12" x2="22" y2="12"></line>
-                        </svg>
-                        Libs
-                    </button>
-
-                    <!-- Force Decay Damping Slider -->
-                    <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
-                        <span style="font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap;">Decay:</span>
-                        <input type="range" id="decay-slider" min="0.01" max="1.0" step="0.01" value="0.85"
-                            style="width: 60px; cursor: pointer; accent-color: var(--accent-color);"
-                            title="Adjust physics force decay (damping/friction)">
-                        <span id="decay-value" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-primary); min-width: 28px;">0.85</span>
+                <!-- Right Panel: Interactive Graph -->
+                <div class="panel" id="right-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Interactive Call Graph</span>
+                        <div class="panel-actions">
+                            <button class="header-action-btn" id="btn-graph-split" title="Maximize Monaco Editor">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
+                    <div class="canvas-wrapper">
+                        <div id="network-canvas"></div>
 
-                    <!-- Node Search Box -->
-                    <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-right: 1px solid var(--border-color);">
-                        <input type="text" id="search-input" placeholder="Search node..."
-                            style="background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.3rem 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; width: 100px; outline: none; border-color: var(--border-color);"
-                            title="Search node by name">
+                        <!-- Progress Overlay -->
+                        <div id="stabilization-overlay" class="progress-overlay" style="display: none;">
+                            <div class="progress-box">
+                                <div class="progress-title">Stabilizing Graph Layout...</div>
+                                <div class="progress-bar-container">
+                                    <div id="stabilization-progress-bar" class="progress-bar"></div>
+                                </div>
+                                <div id="stabilization-progress-text" class="progress-text">0%</div>
+                            </div>
+                        </div>
+
+                        <!-- Node Inspector Drawer (slides from right) -->
+                        <div id="inspector-drawer" class="drawer-right">
+                            <button class="close-drawer-btn" id="btn-close-inspector">&times;</button>
+                            <div class="inspector-header">Node Inspector</div>
+                            <div class="inspector-body" id="inspector-content">
+                                <div class="empty-state">Select a node in the graph to inspect static metrics, class definition coordinates, complexity scales, and decoration scopes.</div>
+                            </div>
+                        </div>
+
+                        <!-- Floating Controls Toolbar (moved left to prevent overlaying inspector) -->
+                        <div class="controls-toolbar">
+                            <!-- Layout selector -->
+                            <select id="layout-select" class="tool-select" title="Switch layout formats">
+                                <option value="spring">Spring Force</option>
+                                <option value="hierarchical-tb">Top-Down</option>
+                                <option value="hierarchical-lr">Left-Right</option>
+                            </select>
+
+                            <!-- View Level selector -->
+                            <select id="view-level-select" class="tool-select" title="Switch view scopes">
+                                <option value="function">Function Graph</option>
+                                <option value="module">Module Graph</option>
+                                <option value="tensorboard">TensorBoard Graph</option>
+                            </select>
+
+                            <!-- Color Mode selector -->
+                            <select id="color-mode-select" class="tool-select" title="Toggle node color theme">
+                                <option value="standard">Standard Types</option>
+                                <option value="complexity">Complexity Heatmap</option>
+                            </select>
+
+                            <!-- Physics Toggle -->
+                            <button id="toggle-physics-btn" class="tool-btn active" title="Toggle Physics Simulation">
+                                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                                Physics
+                            </button>
+
+                            <!-- Stable Layout Button -->
+                            <button id="stable-layout-btn" class="tool-btn" title="Calculate stable layout positions">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+                                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                                    <path d="M12 6v6l4 2"></path>
+                                </svg>
+                                Stable
+                            </button>
+
+                            <!-- Toggle External Library Calls -->
+                            <button id="toggle-external-btn" class="tool-btn active" title="Toggle External Library Calls">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                                </svg>
+                                Libs
+                            </button>
+
+                            <!-- Damping Slider -->
+                            <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap;">Decay:</span>
+                                <input type="range" id="decay-slider" min="0.01" max="1.0" step="0.01" value="0.85"
+                                    style="width: 60px; cursor: pointer; accent-color: var(--accent-color);"
+                                    title="Adjust physics force decay (damping/friction)">
+                                <span id="decay-value" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-primary); min-width: 28px;">0.85</span>
+                            </div>
+
+                            <!-- Search Box -->
+                            <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-right: 1px solid var(--border-color);">
+                                <input type="text" id="search-input" placeholder="Search node..."
+                                    style="background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.3rem 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; width: 100px; outline: none; border-color: var(--border-color);"
+                                    title="Search node by name">
+                            </div>
+
+                            <!-- Reset View -->
+                            <button id="reset-view-btn" class="tool-btn" title="Reset Zoom and Center">
+                                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                                    <polyline points="16 3 21 8 16 13"></polyline>
+                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                                    <polyline points="8 21 3 16 8 11"></polyline>
+                                </svg>
+                                Reset
+                            </button>
+
+                            <!-- Export PNG -->
+                            <button id="export-png-btn" class="tool-btn" title="Export as PNG">
+                                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Export
+                            </button>
+                        </div>
+
+                        <!-- Instruction overlay -->
+                        <div class="help-overlay">
+                            🖱️ Scroll to zoom | 👆 Drag to pan | 🖱️ Double-click to jump to code
+                        </div>
                     </div>
-
-                    <!-- Reset View -->
-                    <button id="reset-view-btn" class="tool-btn" title="Reset Zoom and Center">
-                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                            <polyline points="16 3 21 8 16 13"></polyline>
-                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                            <polyline points="8 21 3 16 8 11"></polyline>
-                        </svg>
-                        Reset
-                    </button>
-
-                    <!-- Export PNG -->
-                    <button id="export-png-btn" class="tool-btn" title="Export as PNG">
-                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Export
-                    </button>
-                </div>
-
-                <div class="help-overlay">
-                    鼠标 Scroll to zoom | 👆 Drag to pan/move | 🖱️ Double-click to jump to code
                 </div>
             </div>
+
+            <!-- Collapsible Bottom Console Drawer -->
+            <footer class="bottom-console-bar" id="bottom-console">
+                <div class="console-tabs-header">
+                    <div class="console-tab active" data-tab="health" id="tab-health">Health Warnings</div>
+                    <div class="console-tab" data-tab="metadata" id="tab-metadata">Project Metadata</div>
+                    <div class="console-tab" data-tab="logs" id="tab-logs">Console Logs</div>
+                    <button class="console-collapse-btn" id="btn-collapse-console" title="Collapse Console Drawer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <div class="console-body" id="console-body-content">
+                    <!-- Health Warning Tab -->
+                    <div class="console-tab-pane active" id="pane-health">
+                        <div class="health-empty-state">No compiled code warnings. Type or save python files to initiate scanning.</div>
+                    </div>
+                    <!-- Metadata Stats Tab -->
+                    <div class="console-tab-pane" id="pane-metadata">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-num" id="stat-total-loc">0</div>
+                                <div class="stat-lbl">Lines of Code</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-num" id="stat-class-count">0</div>
+                                <div class="stat-lbl">Classes Defined</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-num" id="stat-func-count">0</div>
+                                <div class="stat-lbl">Functions Defined</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-num" id="stat-avg-complexity">0.0</div>
+                                <div class="stat-lbl">Average Complexity</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Console Logs Tab -->
+                    <div class="console-tab-pane" id="pane-logs">
+                        <div class="logs-stream" id="logs-stream-content">
+                            <div class="log-line system">[System] Visualizer Dashboard loaded. Live syncing established.</div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
         </div>
     </div>
 

@@ -1199,7 +1199,8 @@ class ProjectGraphManager:
                         "type": "file_parsed",
                         "nodes": graph["nodes"],
                         "edges": graph["edges"],
-                        "model_graph": graph["model_graph"]
+                        "model_graph": graph["model_graph"],
+                        "pending_updates": len(self.pending_nodes) + len(self.unparsed_files)
                     }
                     notify_clients(json.dumps(payload))
                 except Exception as e:
