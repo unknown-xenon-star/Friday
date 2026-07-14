@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friday Call Graph Visualizer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- vis-network CDN -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
+
+    <!-- 3D Force Graph CDN (Three.js based) -->
+    <script src="https://unpkg.com/3d-force-graph@1"></script>
+
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+
+    <!-- External Modular Styling -->
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">F</div>
+            <div class="logo-title">Friday Call Graph</div>
+            <div class="status-badge" id="sync-status">
+                <div class="status-dot"></div>
+                <span id="sync-status-text">Live Syncing</span>
+            </div>
+        </div>
+        <div class="file-info">
+            <svg class="file-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span id="target-filename">main.py</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Panel: Code Editor -->
+        <div class="panel" id="left-panel">
+            <div class="panel-header">
+                <span>Source Code</span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Edits update graph in real-time</span>
+            </div>
+            <div class="editor-wrapper">
+                <div id="editor-container"></div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Interactive Graph -->
+        <div class="panel" id="right-panel">
+            <div class="panel-header">
+                <span>Interactive Call Graph</span>
+                <span>Double-click node to jump to source</span>
+            </div>
+            <div class="canvas-wrapper">
+                <div id="network-canvas"></div>
+                <div id="graph-3d-canvas"></div>
+
+                <!-- Progress Overlay -->
+                <div id="stabilization-overlay" class="progress-overlay" style="display: none;">
+                    <div class="progress-box">
+                        <div class="progress-title">Stabilizing Graph Layout...</div>
+                        <div class="progress-bar-container">
+                            <div id="stabilization-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                        </div>
+                        <div id="stabilization-progress-text" class="progress-text">0%</div>
+                    </div>
+                </div>
+
+                <!-- Floating Toolbar -->
+                <div class="controls-toolbar">
+                    <!-- Layout direction selection -->
+                    <select id="layout-select" class="tool-select" title="Switch layout formats">
+                        <option value="spring">Spring Force</option>
+                        <option value="hierarchical-tb">Top-Down</option>
+                        <option value="hierarchical-lr">Left-Right</option>
+                    </select>
+
+                    <!-- View Level selector -->
+                    <select id="view-level-select" class="tool-select" title="Switch between function-level calls and file-level modules">
+                        <option value="function">Function Graph</option>
+                        <option value="module">Module Graph</option>
+                        <option value="tensorboard">TensorBoard Graph</option>
+                        <option value="3d">3D Force Graph</option>
+                    </select>
+
+                    <!-- Color Mode selector -->
+                    <select id="color-mode-select" class="tool-select" title="Toggle node color theme (Types vs Complexity heatmaps)">
+                        <option value="standard">Standard Types</option>
+                        <option value="complexity">Complexity Heatmap</option>
+                    </select>
+
+                    <!-- Toggle Physics -->
+                    <button id="toggle-physics-btn" class="tool-btn active" title="Toggle Physics Simulation">
+                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                        Physics
+                    </button>
+
+                    <!-- Stable Layout Button -->
+                    <button id="stable-layout-btn" class="tool-btn" title="Calculate stable layout positions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                            <path d="M12 6v6l4 2"></path>
+                        </svg>
+                        Stable
+                    </button>
+
+                    <!-- Toggle External Library Calls -->
+                    <button id="toggle-external-btn" class="tool-btn active" title="Toggle External Library Calls">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                        </svg>
+                        Libs
+                    </button>
+
+                    <!-- Force Decay Damping Slider -->
+                    <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap;">Decay:</span>
+                        <input type="range" id="decay-slider" min="0.01" max="1.0" step="0.01" value="0.85"
+                            style="width: 60px; cursor: pointer; accent-color: var(--accent-color);"
+                            title="Adjust physics force decay (damping/friction)">
+                        <span id="decay-value" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-primary); min-width: 28px;">0.85</span>
+                    </div>
+
+                    <!-- Node Search Box -->
+                    <div style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-right: 1px solid var(--border-color);">
+                        <input type="text" id="search-input" placeholder="Search node..."
+                            style="background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.3rem 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; width: 100px; outline: none; border-color: var(--border-color);"
+                            title="Search node by name">
+                    </div>
+
+                    <!-- Reset View -->
+                    <button id="reset-view-btn" class="tool-btn" title="Reset Zoom and Center">
+                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                            <polyline points="16 3 21 8 16 13"></polyline>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                            <polyline points="8 21 3 16 8 11"></polyline>
+                        </svg>
+                        Reset
+                    </button>
+
+                    <!-- Export PNG -->
+                    <button id="export-png-btn" class="tool-btn" title="Export as PNG">
+                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Export
+                    </button>
+                </div>
+
+                <div class="help-overlay">
+                    鼠标 Scroll to zoom | 👆 Drag to pan/move | 🖱️ Double-click to jump to code
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Banner -->
+    <div id="notify-banner" class="notification-banner">
+        <span id="notify-text"></span>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modular Script Orchestrator -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
