@@ -1,7 +1,7 @@
 {
   "defaults": {
     "libs": "off",
-    "physics": "off",
+    "physics": "on",
     "layout": "spring",
     "view": "function",
     "color_mode": "standard"

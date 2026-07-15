@@ -3,6 +3,209 @@ import os
 import threading
 import time
 import json
+import ctypes
+import subprocess
+
+class CppGraph:
+    _dll = None
+    _compilation_tried = False
+
+    @classmethod
+    def load_dll(cls):
+        if cls._dll is not None:
+            return cls._dll
+        if cls._compilation_tried and cls._dll is None:
+            return None
+            
+        cls._compilation_tried = True
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            dll_path = os.path.join(base_dir, 'graph_core.dll')
+            src_path = os.path.join(base_dir, 'graph_core.cpp')
+            
+            if not os.path.exists(dll_path) and os.path.exists(src_path):
+                print("Compiling high-performance native C++ graph core...")
+                try:
+                    subprocess.run(
+                        ["g++", "-O3", "-shared", "-o", dll_path, src_path], 
+                        check=True, 
+                        capture_output=True
+                    )
+                    print("C++ graph core compiled successfully.")
+                except Exception as ce:
+                    print(f"Compilation of C++ graph core failed: {ce}")
+                    
+            if os.path.exists(dll_path):
+                cls._dll = ctypes.CDLL(dll_path)
+                
+                # Setup DLL argument & return types
+                cls._dll.create_graph.argtypes = []
+                cls._dll.create_graph.restype = ctypes.c_void_p
+                
+                cls._dll.free_graph.argtypes = [ctypes.c_void_p]
+                cls._dll.free_graph.restype = None
+                
+                cls._dll.add_node.argtypes = [
+                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_bool,
+                    ctypes.c_bool, ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                    ctypes.c_int, ctypes.c_bool, ctypes.c_char_p, ctypes.c_char_p
+                ]
+                cls._dll.add_node.restype = None
+                
+                cls._dll.add_edge.argtypes = [
+                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
+                ]
+                cls._dll.add_edge.restype = None
+
+                cls._dll.add_model_node.argtypes = [
+                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+                    ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
+                ]
+                cls._dll.add_model_node.restype = None
+
+                cls._dll.add_model_edge.argtypes = [
+                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p
+                ]
+                cls._dll.add_model_edge.restype = None
+                
+                cls._dll.get_graph_json.argtypes = [ctypes.c_void_p]
+                cls._dll.get_graph_json.restype = ctypes.c_char_p
+        except Exception as e:
+            print(f"Error loading C++ library: {e}")
+            cls._dll = None
+        return cls._dll
+
+    def __init__(self):
+        self.dll = self.load_dll()
+        if self.dll:
+            try:
+                self.handle = self.dll.create_graph()
+            except Exception as e:
+                print(f"Failed to create native C++ graph instance: {e}. Using Python fallback.")
+                self.handle = None
+        else:
+            self.handle = None
+            
+        if self.handle is None:
+            self.fallback_nodes = {}
+            self.fallback_edges = []
+            self.fallback_model_nodes = []
+            self.fallback_model_edges = []
+
+    def __del__(self):
+        if hasattr(self, 'handle') and self.handle and self.dll:
+            try:
+                self.dll.free_graph(self.handle)
+            except:
+                pass
+
+    def add_node(self, node_id, label, is_defined, is_class, lineno, filepath, loc, complexity, is_unused, module_prefix, decorators):
+        if self.handle:
+            dec_csv = ",".join(decorators) if decorators else ""
+            self.dll.add_node(
+                self.handle,
+                node_id.encode('utf-8'),
+                (label or "").encode('utf-8'),
+                is_defined,
+                is_class,
+                lineno if lineno is not None else -1,
+                filepath.encode('utf-8') if filepath else b"",
+                loc if loc is not None else -1,
+                complexity if complexity is not None else -1,
+                is_unused,
+                module_prefix.encode('utf-8') if module_prefix else b"",
+                dec_csv.encode('utf-8')
+            )
+        else:
+            self.fallback_nodes[node_id] = {
+                "id": node_id,
+                "label": label,
+                "is_defined": is_defined,
+                "is_class": is_class,
+                "lineno": lineno,
+                "filepath": filepath,
+                "loc": loc,
+                "complexity": complexity,
+                "is_unused": is_unused,
+                "module_prefix": module_prefix,
+                "decorators": decorators
+            }
+
+    def add_edge(self, from_id, to_id, value, edge_type):
+        if self.handle:
+            self.dll.add_edge(
+                self.handle, 
+                from_id.encode('utf-8'), 
+                to_id.encode('utf-8'), 
+                value, 
+                edge_type.encode('utf-8') if edge_type else b""
+            )
+        else:
+            self.fallback_edges.append({
+                "from": from_id,
+                "to": to_id,
+                "value": value,
+                "type": edge_type
+            })
+
+    def add_model_node(self, node_id, label, layer_type, shape, params, filepath, lineno, namespace):
+        if self.handle:
+            self.dll.add_model_node(
+                self.handle,
+                node_id.encode('utf-8'),
+                (label or "").encode('utf-8'),
+                (layer_type or "").encode('utf-8'),
+                (shape or "").encode('utf-8'),
+                (params or "").encode('utf-8'),
+                (filepath or "").encode('utf-8'),
+                lineno if lineno is not None else -1,
+                (namespace or "").encode('utf-8')
+            )
+        else:
+            self.fallback_model_nodes.append({
+                "id": node_id,
+                "label": label,
+                "type": layer_type,
+                "layer_type": layer_type,
+                "output_shape": shape,
+                "parameters": params,
+                "filepath": filepath,
+                "lineno": lineno,
+                "namespace": namespace
+            })
+
+    def add_model_edge(self, from_id, to_id, tensor_shape):
+        if self.handle:
+            self.dll.add_model_edge(
+                self.handle, 
+                from_id.encode('utf-8'), 
+                to_id.encode('utf-8'), 
+                (tensor_shape or "").encode('utf-8')
+            )
+        else:
+            self.fallback_model_edges.append({
+                "from": from_id,
+                "to": to_id,
+                "tensor_shape": tensor_shape
+            })
+
+    def get_dict(self):
+        if self.handle:
+            try:
+                json_bytes = self.dll.get_graph_json(self.handle)
+                return json.loads(json_bytes.decode('utf-8'))
+            except Exception as e:
+                print(f"Failed to read JSON from C++ graph core: {e}. Using empty dict.")
+                return {"nodes": [], "edges": [], "model_graph": {"nodes": [], "edges": []}}
+        else:
+            return {
+                "nodes": list(self.fallback_nodes.values()),
+                "edges": self.fallback_edges,
+                "model_graph": {
+                    "nodes": self.fallback_model_nodes,
+                    "edges": self.fallback_model_edges
+                }
+            }
 
 KERAS_LAYERS = {
     'Dense', 'Conv1D', 'Conv2D', 'Conv3D', 'MaxPooling1D', 'MaxPooling2D', 'MaxPooling3D',
@@ -1281,8 +1484,7 @@ class ProjectGraphManager:
                 if u in self.visible_node_ids:
                     actual_visible.add(val)
                     
-            # Filter nodes list
-            nodes = []
+            cpp_graph = CppGraph()
             called_targets = set(k[1] for k in global_edges.keys() if k[2] == 'call' and k[0] in actual_visible)
             
             for name, meta in global_nodes_meta.items():
@@ -1302,53 +1504,46 @@ class ProjectGraphManager:
                         module_prefix = mod
                         break
                         
-                nodes.append({
-                    "id": name,
-                    "label": label,
-                    "is_defined": meta["is_defined"],
-                    "is_class": meta["is_class"],
-                    "lineno": meta["lineno"],
-                    "decorators": meta["decorators"],
-                    "is_unused": is_unused,
-                    "complexity": meta["complexity"],
-                    "loc": meta["loc"],
-                    "filepath": meta["filepath"],
-                    "module_prefix": module_prefix
-                })
+                cpp_graph.add_node(
+                    name,
+                    label,
+                    meta["is_defined"],
+                    meta["is_class"],
+                    meta["lineno"],
+                    meta["filepath"],
+                    meta["loc"],
+                    meta["complexity"],
+                    is_unused,
+                    module_prefix,
+                    meta["decorators"]
+                )
                 
-            # Filter edges list
-            edges = []
             for (u, val, edge_type), count in global_edges.items():
                 if u in actual_visible and val in actual_visible:
-                    edges.append({
-                        "from": u,
-                        "to": val,
-                        "value": count,
-                        "type": edge_type
-                    })
+                    cpp_graph.add_edge(u, val, count, edge_type)
                     
             # Filter Keras model nodes based on visible namespace or prefix
-            model_visible_nodes = []
             model_visible_node_ids = set()
             for node in model_nodes:
                 ns = node.get('namespace', '')
                 if ns in actual_visible or any(ns.startswith(v + '.') or ns.startswith(v + '/') for v in actual_visible):
-                    model_visible_nodes.append(node)
+                    cpp_graph.add_model_node(
+                        node["id"],
+                        node.get("label") or "",
+                        node.get("type") or node.get("layer_type") or "",
+                        node.get("output_shape") or "",
+                        node.get("parameters") or "",
+                        node.get("filepath") or "",
+                        node.get("lineno"),
+                        node.get("namespace") or ""
+                    )
                     model_visible_node_ids.add(node['id'])
                     
-            model_visible_edges = []
             for edge in model_edges:
                 if edge['from'] in model_visible_node_ids and edge['to'] in model_visible_node_ids:
-                    model_visible_edges.append(edge)
+                    cpp_graph.add_model_edge(edge["from"], edge["to"], edge.get("tensor_shape") or "")
                     
-            return {
-                "nodes": nodes,
-                "edges": edges,
-                "model_graph": {
-                    "nodes": model_visible_nodes,
-                    "edges": model_visible_edges
-                }
-            }
+            return cpp_graph.get_dict()
 
     def update_overlay(self, filepath, code):
         filepath = filepath.replace('\\', '/')
@@ -1569,7 +1764,8 @@ def parse_project_to_graph(workspace_dir, overlays=None):
         if edge_type == 'call':
             called_targets.add(v)
             
-    nodes = []
+    cpp_graph = CppGraph()
+
     for name, meta in global_nodes_meta.items():
         is_unused = False
         if meta["is_defined"] and not meta["is_class"] and not name.endswith(".<module>"):
@@ -1585,37 +1781,39 @@ def parse_project_to_graph(workspace_dir, overlays=None):
                 module_prefix = mod
                 break
                 
-        nodes.append({
-            "id": name,
-            "label": label,
-            "is_defined": meta["is_defined"],
-            "is_class": meta["is_class"],
-            "lineno": meta["lineno"],
-            "decorators": meta["decorators"],
-            "is_unused": is_unused,
-            "complexity": meta["complexity"],
-            "loc": meta["loc"],
-            "filepath": meta["filepath"],
-            "module_prefix": module_prefix
-        })
+        cpp_graph.add_node(
+            name,
+            label,
+            meta["is_defined"],
+            meta["is_class"],
+            meta["lineno"],
+            meta["filepath"],
+            meta["loc"],
+            meta["complexity"],
+            is_unused,
+            module_prefix,
+            meta["decorators"]
+        )
         
-    edges = []
     for (u, v, edge_type), count in global_edges.items():
-        edges.append({
-            "from": u,
-            "to": v,
-            "value": count,
-            "type": edge_type
-        })
+        cpp_graph.add_edge(u, v, count, edge_type)
+
+    for node in model_nodes:
+        cpp_graph.add_model_node(
+            node["id"],
+            node.get("label") or "",
+            node.get("type") or node.get("layer_type") or "",
+            node.get("output_shape") or "",
+            node.get("parameters") or "",
+            node.get("filepath") or "",
+            node.get("lineno"),
+            node.get("namespace") or ""
+        )
+
+    for edge in model_edges:
+        cpp_graph.add_model_edge(edge["from"], edge["to"], edge.get("tensor_shape") or "")
         
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "model_graph": {
-            "nodes": model_nodes,
-            "edges": model_edges
-        }
-    }
+    return cpp_graph.get_dict()
 
 def parse_code_to_graph(code_str):
     """
