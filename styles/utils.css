@@ -1,0 +1,33 @@
+/* utils.css - Additional utility classes and theming variables */
+
+/* Utility spacing classes */
+.mt-1 { margin-top: var(--gap); }
+.mb-1 { margin-bottom: var(--gap); }
+.mx-1 { margin-left: var(--gap); margin-right: var(--gap); }
+.px-2 { padding-left: calc(var(--gap) * 2); padding-right: calc(var(--gap) * 2); }
+
+/* Color utilities */
+.text-primary { color: var(--color-primary); }
+.bg-primary { background: var(--color-primary); }
+
+/* Shape utilities */
+.rounded { border-radius: var(--radius); }
+.shadow-sm { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+
+/* Theming variables (extendable) */
+:root {
+  --color-primary: hsl(210, 80%, 60%);
+  --color-primary-dark: hsl(210, 80%, 50%);
+  --color-accent: hsl(260, 80%, 60%);
+  --color-bg: hsl(220, 15%, 12%);
+  --color-bg-light: hsl(220, 10%, 20%);
+  --color-text: hsl(0, 0%, 90%);
+  --color-muted: hsl(0, 0%, 60%);
+}
+
+/* Dark mode support */
+[data-theme="dark"] {
+  --color-bg: hsl(220, 15%, 10%);
+  --color-bg-light: hsl(220, 10%, 15%);
+  --color-text: hsl(0, 0%, 95%);
+}
