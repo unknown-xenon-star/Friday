@@ -373,9 +373,6 @@ export function renderFileExplorer() {
             if (!isSamePath(file, state.activeFile)) {
                 const editorMod = await import('./editor.js');
                 await editorMod.switchActiveFile(file);
-                // Highlight item
-                document.querySelectorAll('.explorer-file-item').forEach(el => el.classList.remove('active'));
-                item.classList.add('active');
             }
         });
         
