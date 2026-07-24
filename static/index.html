@@ -24,26 +24,6 @@
 
 <body>
 
-    <!-- Header bar -->
-    <header>
-        <div class="logo-area">
-            <div class="logo-icon">F</div>
-            <div class="logo-title">Friday Call Graph</div>
-            <div class="status-badge" id="sync-status">
-                <div class="status-dot"></div>
-                <span id="sync-status-text">Live Syncing</span>
-            </div>
-        </div>
-        <div class="file-info">
-            <svg class="file-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            <span id="target-filename">main.py</span>
-        </div>
-    </header>
-
     <!-- Main visual workspace -->
     <div class="main-layout">
         <!-- Sidebar Activity Bar -->
@@ -52,6 +32,12 @@
                 <button class="activity-icon active" id="btn-tab-explorer" title="Project Workspace">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </button>
+                <button class="activity-icon active" id="btn-tab-editor" title="Toggle Code Editor">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
                     </svg>
                 </button>
                 <button class="activity-icon" id="btn-tab-analytics" title="Project Analysis & Health">
@@ -71,6 +57,24 @@
                 </button>
             </div>
         </aside>
+        
+        <!-- Collapsible Explorer Sidebar Panel -->
+        <div class="explorer-sidebar" id="explorer-sidebar">
+            <div class="explorer-header">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <span class="explorer-header-title">Explorer</span>
+                    <div class="status-badge" id="sync-status" style="margin: 0; padding: 0.15rem 0.45rem; font-size: 0.62rem;">
+                        <div class="status-dot"></div>
+                        <span id="sync-status-text">Live Syncing</span>
+                    </div>
+                </div>
+                <span class="explorer-header-path" id="explorer-workspace-path">Friday</span>
+            </div>
+            <div class="explorer-search-wrapper">
+                <input type="text" id="explorer-search-input" placeholder="Filter files..." class="explorer-search-input" title="Filter files by name" />
+            </div>
+            <div class="explorer-file-list" id="explorer-file-list"></div>
+        </div>
 
         <!-- Dynamic Panels Wrapper -->
         <div class="workspace-wrapper">
@@ -78,7 +82,7 @@
                 <!-- Left Panel: Code Editor -->
                 <div class="panel" id="left-panel">
                     <div class="panel-header">
-                        <span class="panel-title">Source Code</span>
+                        <span class="panel-title">Source Code <code id="target-filename" style="font-family: var(--font-mono); font-size: 0.78rem; margin-left: 0.4rem; color: var(--text-secondary); font-weight: 500;">main.py</code></span>
                         <div class="panel-actions">
                             <button class="header-action-btn" id="btn-editor-split" title="Maximize Visualizer Graph">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -92,6 +96,9 @@
                         <div id="editor-container"></div>
                     </div>
                 </div>
+
+                <!-- Vertical Resizer Drag Handle -->
+                <div class="resizer-v" id="resizer-v" title="Drag to resize, Double-click to split 50:50"></div>
 
                 <!-- Right Panel: Interactive Graph -->
                 <div class="panel" id="right-panel">

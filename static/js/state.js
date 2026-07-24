@@ -20,8 +20,11 @@ export const state = {
 
     // UI Workspace Layout state
     activeSidebarTab: 'explorer', // 'explorer' or 'analytics'
+    isExplorerOpen: true,
     isConsoleOpen: false,
     activeConsoleTab: 'health', // 'health', 'metadata', 'logs'
     selectedNode: null,
+    files: [],
+    filteredFiles: [],
     logs: [] // holds SSE parse logs
 };

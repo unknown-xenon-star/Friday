@@ -4,6 +4,9 @@
 #include <unordered_map>
 #include <sstream>
 #include <algorithm>
+#include <cstring>
+#include <cstring>
+#include <cstdlib>  // for malloc/free
 
 // Define a struct for Node representation in C++ using memory-efficient types
 struct Node {
@@ -216,42 +219,117 @@ private:
     }
 };
 
-// C Interface for ctypes binding
+// // C Interface for ctypes binding
+// extern "C" {
+//     __declspec(dllexport) void* create_graph() {
+//         return new CallGraph();
+//     }
+
+//     __declspec(dllexport) void free_graph(void* graph) {
+//         delete static_cast<CallGraph*>(graph);
+//     }
+
+//     __declspec(dllexport) void add_node(void* graph, const char* id, const char* label, bool is_defined, 
+//                                         bool is_class, int lineno, const char* filepath, int loc, 
+//                                         int complexity, bool is_unused, const char* module_prefix, 
+//                                         const char* decorators_csv) {
+//         static_cast<CallGraph*>(graph)->add_node(id, label, is_defined, is_class, lineno, 
+//                                                  filepath, loc, complexity, is_unused, 
+//                                                  module_prefix, decorators_csv);
+//     }
+
+//     __declspec(dllexport) void add_edge(void* graph, const char* from_id, const char* to_id, int value, const char* type) {
+//         static_cast<CallGraph*>(graph)->add_edge(from_id, to_id, value, type);
+//     }
+
+//     __declspec(dllexport) void add_model_node(void* graph, const char* id, const char* label, const char* layer_type, 
+//                                               const char* shape, const char* params, const char* filepath, 
+//                                               int lineno, const char* namespace_val) {
+//         static_cast<CallGraph*>(graph)->add_model_node(id, label, layer_type, shape, params, filepath, lineno, namespace_val);
+//     }
+
+//     __declspec(dllexport) void add_model_edge(void* graph, const char* from_id, const char* to_id, const char* tensor_shape) {
+//         static_cast<CallGraph*>(graph)->add_model_edge(from_id, to_id, tensor_shape);
+//     }
+
+//     // __declspec(dllexport) const char* get_graph_json(void* graph) {
+//     //     static std::string result_cache; 
+//     //     result_cache = static_cast<CallGraph*>(graph)->to_json();
+//     //     return result_cache.c_str();
+//     // }
+//     #ifdef _WIN32
+//         #define EXPORT __declspec(dllexport)
+//     #else
+//         #define EXPORT __attribute__((visibility("default")))
+//     #endif
+
+//     extern "C" {
+//         EXPORT char* get_graph_json(void* graph) {
+//             if (!graph) return nullptr;
+//             std::string json = static_cast<CallGraph*>(graph)->to_json();
+//             char* result = new char[json.size() + 1];
+//             std::memcpy(result, json.c_str(), json.size() + 1);
+//             return result;
+//         }
+
+//         EXPORT void free_json_string(char* str) {
+//             delete[] str;
+//         }
+//     }
+// }
+
+#ifdef _WIN32
+    #define EXPORT __declspec(dllexport)
+#else
+    #define EXPORT __attribute__((visibility("default")))
+#endif
+
 extern "C" {
-    __declspec(dllexport) void* create_graph() {
+    EXPORT void* create_graph() {
         return new CallGraph();
     }
 
-    __declspec(dllexport) void free_graph(void* graph) {
+    EXPORT void free_graph(void* graph) {
         delete static_cast<CallGraph*>(graph);
     }
 
-    __declspec(dllexport) void add_node(void* graph, const char* id, const char* label, bool is_defined, 
-                                        bool is_class, int lineno, const char* filepath, int loc, 
-                                        int complexity, bool is_unused, const char* module_prefix, 
-                                        const char* decorators_csv) {
+    EXPORT void add_node(void* graph, const char* id, const char* label, bool is_defined, 
+                         bool is_class, int lineno, const char* filepath, int loc, 
+                         int complexity, bool is_unused, const char* module_prefix, 
+                         const char* decorators_csv) {
+        if (!graph) return;
         static_cast<CallGraph*>(graph)->add_node(id, label, is_defined, is_class, lineno, 
                                                  filepath, loc, complexity, is_unused, 
                                                  module_prefix, decorators_csv);
     }
 
-    __declspec(dllexport) void add_edge(void* graph, const char* from_id, const char* to_id, int value, const char* type) {
+    EXPORT void add_edge(void* graph, const char* from_id, const char* to_id, int value, const char* type) {
+        if (!graph) return;
         static_cast<CallGraph*>(graph)->add_edge(from_id, to_id, value, type);
     }
 
-    __declspec(dllexport) void add_model_node(void* graph, const char* id, const char* label, const char* layer_type, 
-                                              const char* shape, const char* params, const char* filepath, 
-                                              int lineno, const char* namespace_val) {
+    EXPORT void add_model_node(void* graph, const char* id, const char* label, const char* layer_type, 
+                               const char* shape, const char* params, const char* filepath, 
+                               int lineno, const char* namespace_val) {
+        if (!graph) return;
         static_cast<CallGraph*>(graph)->add_model_node(id, label, layer_type, shape, params, filepath, lineno, namespace_val);
     }
 
-    __declspec(dllexport) void add_model_edge(void* graph, const char* from_id, const char* to_id, const char* tensor_shape) {
+    EXPORT void add_model_edge(void* graph, const char* from_id, const char* to_id, const char* tensor_shape) {
+        if (!graph) return;
         static_cast<CallGraph*>(graph)->add_model_edge(from_id, to_id, tensor_shape);
     }
 
-    __declspec(dllexport) const char* get_graph_json(void* graph) {
-        static std::string result_cache; 
-        result_cache = static_cast<CallGraph*>(graph)->to_json();
-        return result_cache.c_str();
+    EXPORT char* get_graph_json(void* graph) {
+        if (!graph) return nullptr;
+        std::string json = static_cast<CallGraph*>(graph)->to_json();
+        char* result = (char*)std::malloc(json.size() + 1);
+        if (!result) return nullptr;
+        std::memcpy(result, json.c_str(), json.size() + 1);
+        return result;
+    }
+
+    EXPORT void free_json_string(char* str) {
+        std::free(str);
     }
 }

@@ -17,18 +17,18 @@ export function initializeGraph() {
                 max: 30
             },
             font: {
-                color: '#f3f4f6',
+                color: '#1A1A1A',
                 size: 13,
-                face: 'Inter',
-                strokeWidth: 2,
-                strokeColor: '#080c14'
+                face: "'SF Pro Display', 'Geist Sans', 'Helvetica Neue', sans-serif",
+                strokeWidth: 2.5,
+                strokeColor: '#FFFFFF'
             },
-            borderWidth: 2,
+            borderWidth: 1.5,
             shadow: {
                 enabled: true,
-                color: 'rgba(0,0,0,0.5)',
-                size: 5,
-                x: 2,
+                color: 'rgba(0,0,0,0.03)',
+                size: 4,
+                x: 0,
                 y: 2
             }
         },
@@ -40,12 +40,12 @@ export function initializeGraph() {
                 }
             },
             color: {
-                color: 'rgba(99, 102, 241, 0.4)',
-                highlight: '#818cf8',
-                hover: '#818cf8',
+                color: 'rgba(26, 26, 26, 0.15)',
+                highlight: '#1F6C9F',
+                hover: '#1F6C9F',
                 inherit: false
             },
-            width: 2,
+            width: 1.5,
             smooth: {
                 enabled: true,
                 type: 'cubicBezier',
@@ -341,16 +341,16 @@ export function updateGraphView(graphData) {
         
         if (state.viewLevel === 'module') {
             const isExternal = node.id === 'External';
-            let bgColor = '#8b5cf6'; // Violet-500
-            let borderColor = '#a78bfa'; // Violet-400
-            let highlightBg = '#7c3aed'; // Violet-600
-            let highlightBorder = '#c4b5fd';
+            let bgColor = '#E1F3FE'; // washed blue
+            let borderColor = '#1F6C9F';
+            let highlightBg = '#BFE3FC';
+            let highlightBorder = '#1F6C9F';
             
             if (isExternal) {
-                bgColor = '#475569';
-                borderColor = '#64748b';
-                highlightBg = '#334155';
-                highlightBorder = '#94a3b8';
+                bgColor = '#F5F5F3';
+                borderColor = '#747370';
+                highlightBg = '#E6E6E3';
+                highlightBorder = '#1A1A1A';
             }
             
             let title = `<b>${isExternal ? 'External Libraries' : node.id + '.py'}</b>`;
@@ -375,61 +375,61 @@ export function updateGraphView(graphData) {
                     highlight: { background: highlightBg, border: highlightBorder },
                     hover: { background: highlightBg, border: highlightBorder }
                 },
-                font: { color: '#f3f4f6', face: 'Inter', size: 14, bold: true },
-                shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 4, x: 2, y: 2 }
+                font: { color: '#1A1A1A', face: "'SF Pro Display', 'Geist Sans', 'Helvetica Neue', sans-serif", size: 14, bold: true },
+                shadow: { enabled: true, color: 'rgba(0,0,0,0.03)', size: 4, x: 0, y: 2 }
             };
         }
 
         const isUserDefined = node.is_defined;
         const isClass = node.is_class;
 
-        let bgColor = '#334155'; // default external
-        let borderColor = '#475569';
-        let highlightBg = '#475569';
-        let highlightBorder = '#64748b';
+        let bgColor = '#F5F5F3'; // default external
+        let borderColor = '#747370';
+        let highlightBg = '#E6E6E3';
+        let highlightBorder = '#1A1A1A';
         let borderDashes = false;
 
         if (state.activeColorMode === 'complexity' && isUserDefined && !isClass && node.id !== '<module>') {
-            // Heatmap colors based on function complexity
             const c = node.complexity || 1;
             if (c > 7) {
-                bgColor = '#ef4444'; // Red-500 (Complex)
-                borderColor = '#f87171'; // Red-400
-                highlightBg = '#dc2626';
-                highlightBorder = '#fca5a5';
+                bgColor = '#FDEBEC'; // washed red
+                borderColor = '#9F2F2D';
+                highlightBg = '#FADCDD';
+                highlightBorder = '#9F2F2D';
             } else if (c >= 4) {
-                bgColor = '#f59e0b'; // Amber-500 (Moderate)
-                borderColor = '#fbbf24'; // Amber-400
-                highlightBg = '#d97706';
-                highlightBorder = '#fcd34d';
+                bgColor = '#FBF3DB'; // washed yellow
+                borderColor = '#956400';
+                highlightBg = '#F6E5C3';
+                highlightBorder = '#956400';
             } else {
-                bgColor = '#3b82f6'; // Blue-500 (Simple)
-                borderColor = '#60a5fa'; // Blue-400
-                highlightBg = '#2563eb';
-                highlightBorder = '#93c5fd';
+                bgColor = '#E1F3FE'; // washed blue
+                borderColor = '#1F6C9F';
+                highlightBg = '#BFE3FC';
+                highlightBorder = '#1F6C9F';
             }
         } else {
             if (node.id === '<module>') {
-                bgColor = '#1e293b'; // dark entry
-                borderColor = '#64748b';
-                highlightBg = '#334155';
-                highlightBorder = '#94a3b8';
+                bgColor = '#FBF3DB'; // washed yellow
+                borderColor = '#956400';
+                highlightBg = '#F6E5C3';
+                highlightBorder = '#956400';
             } else if (isClass) {
-                bgColor = '#059669'; // Emerald-600
-                borderColor = '#10b981'; // Emerald-500
-                highlightBg = '#047857';
-                highlightBorder = '#34d399';
+                bgColor = '#EDF3EC'; // washed green
+                borderColor = '#346538';
+                highlightBg = '#DBEBDA';
+                highlightBorder = '#346538';
             } else if (isUserDefined) {
-                bgColor = '#6366f1'; // Indigo-500
-                borderColor = '#818cf8'; // Indigo-400
-                highlightBg = '#4f46e5';
-                highlightBorder = '#a5b4fc';
-
-                // Highlight unused / dead functions
                 if (node.is_unused) {
-                    borderColor = '#f43f5e'; // rose-500
-                    highlightBorder = '#f43f5e';
+                    bgColor = '#FDEBEC'; // washed red
+                    borderColor = '#9F2F2D';
+                    highlightBg = '#FADCDD';
+                    highlightBorder = '#9F2F2D';
                     borderDashes = true;
+                } else {
+                    bgColor = '#E1F3FE'; // washed blue
+                    borderColor = '#1F6C9F';
+                    highlightBg = '#BFE3FC';
+                    highlightBorder = '#1F6C9F';
                 }
             }
         }
@@ -493,7 +493,7 @@ export function updateGraphView(graphData) {
                 borderDashes: borderDashes
             },
             size: node.id === '<module>' ? 18 : (isClass ? 26 : (isUserDefined ? 24 : 14)),
-            shadow: isUserDefined || isClass ? { enabled: true, color: isClass ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.4)', size: 10 } : { enabled: false },
+            shadow: isUserDefined || isClass ? { enabled: true, color: 'rgba(0,0,0,0.03)', size: 8 } : { enabled: false },
             title: title
         };
     });
@@ -505,14 +505,14 @@ export function updateGraphView(graphData) {
                 from: edge.from,
                 to: edge.to,
                 label: edge.tensor_shape || '',
-                font: { size: 10, color: '#9ca3af', face: 'JetBrains Mono', align: 'horizontal', background: '#080c14' },
+                font: { size: 10, color: '#747370', face: 'Geist Mono', align: 'horizontal', background: '#FFFFFF' },
                 color: {
-                    color: 'rgba(148, 163, 184, 0.6)',
-                    highlight: '#38bdf8',
-                    hover: '#38bdf8',
+                    color: 'rgba(26, 26, 26, 0.15)',
+                    highlight: '#1F6C9F',
+                    hover: '#1F6C9F',
                     inherit: false
                 },
-                width: 2.5,
+                width: 2.0,
                 arrows: {
                     to: {
                         enabled: true,
@@ -531,14 +531,14 @@ export function updateGraphView(graphData) {
         const isDecorator = edge.type === 'decorator';
         const isContainment = edge.type === 'containment';
 
-        let color = 'rgba(99, 102, 241, 0.4)'; // default call: indigo
-        let highlightColor = '#818cf8';
+        let color = 'rgba(26, 26, 26, 0.15)'; // default call: light charcoal line
+        let highlightColor = '#1F6C9F'; // blue call
         if (isDecorator) {
-            color = 'rgba(234, 179, 8, 0.5)'; // gold
-            highlightColor = '#eab308';
+            color = 'rgba(149, 100, 0, 0.2)'; // amber line
+            highlightColor = '#956400';
         } else if (isContainment) {
-            color = 'rgba(148, 163, 184, 0.25)'; // subtle slate-400
-            highlightColor = '#94a3b8';
+            color = 'rgba(116, 115, 112, 0.15)'; // gray containment
+            highlightColor = '#747370';
         }
 
         return {
@@ -553,14 +553,14 @@ export function updateGraphView(graphData) {
                 }
             },
             label: isDecorator ? 'decorates' : (isContainment ? 'defines' : ''),
-            font: { size: 9, color: '#6b7280', strokeWidth: 0 },
+            font: { size: 9, color: '#747370', strokeWidth: 0 },
             color: {
                 color: color,
                 highlight: highlightColor,
                 hover: highlightColor,
                 inherit: false
             },
-            width: isDecorator || isContainment ? 1 : 2,
+            width: isDecorator || isContainment ? 1 : 1.5,
             smooth: {
                 enabled: true,
                 type: 'cubicBezier',
@@ -685,7 +685,7 @@ export function highlightNodeConnections(nodeId) {
         const origColor = n.color || { background: '#6366f1', border: '#818cf8' };
         const bgColor = adjustOpacity(origColor.background || origColor, opacity);
         const borderColor = adjustOpacity(origColor.border || origColor, opacity);
-        const textColor = adjustOpacity('#f3f4f6', opacity);
+        const textColor = adjustOpacity('#1A1A1A', opacity);
 
         return {
             id: n.id,

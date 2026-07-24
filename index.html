@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Professional Minimal UI</title>
+  <meta name="description" content="A sleek, responsive UI built with vanilla HTML, CSS, and JavaScript." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/layout.css" />
+  <link rel="stylesheet" href="styles/components.css" />
+  <link rel="stylesheet" href="styles/graph.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <img src="assets/logo.svg" alt="Logo" class="logo" width="48" height="48" />
+      <nav class="nav" id="main-nav">
+        <ul class="nav-list">
+          <li><a href="#" class="nav-link active">Home</a></li>
+          <li><a href="#about" class="nav-link">About</a></li>
+          <li><a href="#features" class="nav-link">Features</a></li>
+          <li><a href="#graph" class="nav-link">Graph</a></li>
+          <li><a href="#contact" class="nav-link">Contact</a></li>
+        </ul>
+      </nav>
+      <button class="nav-toggle" aria-label="Toggle navigation" id="nav-toggle"><span class="hamburger"></span></button>
+    </div>
+  </header>
+
+  <main class="site-main">
+    <section class="hero" id="home">
+      <div class="container">
+        <h1>Welcome to Your New UI</h1>
+        <p class="hero-subtitle">Elegant, fast, and responsive – built from scratch.</p>
+        <button class="btn btn-primary">Get Started</button>
+      </div>
+    </section>
+
+    <section class="cards" id="features">
+      <div class="container card-grid">
+        <article class="card"><h2>Feature One</h2><p>Brief description of the first feature.</p></article>
+        <article class="card"><h2>Feature Two</h2><p>Brief description of the second feature.</p></article>
+        <article class="card"><h2>Feature Three</h2><p>Brief description of the third feature.</p></article>
+      </div>
+    </section>
+
+    <section class="graph-section" id="graph">
+      <div class="container">
+        <h2 class="text-center">Data Overview</h2>
+        <div class="graph-wrapper">
+          <img src="assets/graph-placeholder.svg" alt="Graph placeholder" class="graph-image" />
+        </div>
+      </div>
+    </section>
+
+    <section class="contact" id="contact">
+      <div class="container">
+        <h2 class="text-center">Contact Us</h2>
+        <p class="text-center">Coming soon…</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <p>&copy; 2026 Your Company. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="scripts/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+/* base.css - Design tokens and reset */
+
+/* CSS Reset (simplified) */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  color-scheme: dark light;
+  /* Dark mode default */
+  background-color: hsl(220, 15%, 12%);
+  color: hsl(0, 0%, 90%);
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Design Tokens */
+:root {
+  --color-bg: hsl(220, 15%, 12%);
+  --color-bg-light: hsl(220, 10%, 20%);
+  --color-primary: hsl(210, 80%, 60%);
+  --color-primary-dark: hsl(210, 80%, 50%);
+  --color-accent: hsl(260, 80%, 60%);
+  --color-text: hsl(0, 0%, 90%);
+  --color-muted: hsl(0, 0%, 60%);
+  --radius: 8px;
+  --gap: 1rem;
+  --transition: 0.2s ease;
+}
+
+/* Utility Classes */
+.container {
+  width: min(90%, 1200px);
+  margin-inline: auto;
+  padding-inline: var(--gap);
+}
+
+.text-center { text-align: center; }
+
+/* Light mode (optional) */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: hsl(220, 15%, 95%);
+    --color-bg-light: hsl(220, 10%, 90%);
+    --color-text: hsl(0, 0%, 10%);
+    --color-muted: hsl(0, 0%, 40%);
+  }
+}

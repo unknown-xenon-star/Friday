@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { showToast, showBanner } from './ui.js';
+import { showToast, showBanner, renderFileExplorer } from './ui.js';
 import { updateGraphView } from './graph.js';
 
 // Fetch source code and graph from disk
@@ -48,6 +48,7 @@ export async function switchActiveFile(filepath, targetLine = null) {
         if (fileData.content !== undefined) {
             state.activeFile = filepath;
             document.getElementById('target-filename').textContent = filepath;
+            renderFileExplorer();
 
             state.isCodeChangingProgrammatically = true;
             state.editor.setValue(fileData.content);

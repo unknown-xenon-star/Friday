@@ -12,66 +12,106 @@ class CppGraph:
 
     @classmethod
     def load_dll(cls):
+        # Return already loaded DLL
         if cls._dll is not None:
             return cls._dll
-        if cls._compilation_tried and cls._dll is None:
+        # Avoid repeated attempts after a failure
+        if cls._compilation_tried:
             return None
-            
         cls._compilation_tried = True
         try:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.abspath(os.path.dirname(__file__))
             dll_path = os.path.join(base_dir, 'graph_core.dll')
             src_path = os.path.join(base_dir, 'graph_core.cpp')
-            
+
+            # If MinGW is installed, add its bin directory to PATH so dependent DLLs can be found
+            # This is a heuristic – adjust the path if your MinGW location differs
+            import shutil
+            gxx_path = shutil.which('g++')
+            gxx_dir = None
+            if gxx_path:
+                gxx_dir = os.path.dirname(os.path.abspath(gxx_path))
+                if os.path.isdir(gxx_dir):
+                    os.environ['PATH'] = gxx_dir + os.pathsep + os.environ.get('PATH', '')
+            else:
+                mingw_bin = os.path.expanduser('C:/Program Files/mingw-w64/bin')
+                if os.path.isdir(mingw_bin):
+                    os.environ['PATH'] = mingw_bin + os.pathsep + os.environ.get('PATH', '')
+
+            # Compile the DLL on the fly if source is present and DLL missing
             if not os.path.exists(dll_path) and os.path.exists(src_path):
-                print("Compiling high-performance native C++ graph core...")
+                print('[GRAPH] Compiling C++ graph core...')
                 try:
                     subprocess.run(
-                        ["g++", "-O3", "-shared", "-o", dll_path, src_path], 
-                        check=True, 
-                        capture_output=True
+                        ['g++', '-O3', '-shared', '-o', dll_path, src_path],
+                        check=True,
+                        capture_output=True,
                     )
-                    print("C++ graph core compiled successfully.")
-                except Exception as ce:
-                    print(f"Compilation of C++ graph core failed: {ce}")
-                    
+                    print('[GRAPH] C++ graph core compiled successfully.')
+                except Exception as compile_err:
+                    print(f'[GRAPH] Compilation failed: {compile_err}')
+                    # Continue to attempt loading any existing DLL
+
             if os.path.exists(dll_path):
-                cls._dll = ctypes.CDLL(dll_path)
-                
-                # Setup DLL argument & return types
-                cls._dll.create_graph.argtypes = []
-                cls._dll.create_graph.restype = ctypes.c_void_p
-                
-                cls._dll.free_graph.argtypes = [ctypes.c_void_p]
-                cls._dll.free_graph.restype = None
-                
-                cls._dll.add_node.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_bool,
-                    ctypes.c_bool, ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
-                    ctypes.c_int, ctypes.c_bool, ctypes.c_char_p, ctypes.c_char_p
-                ]
-                cls._dll.add_node.restype = None
-                
-                cls._dll.add_edge.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
-                ]
-                cls._dll.add_edge.restype = None
-
-                cls._dll.add_model_node.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
-                    ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
-                ]
-                cls._dll.add_model_node.restype = None
-
-                cls._dll.add_model_edge.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p
-                ]
-                cls._dll.add_model_edge.restype = None
-                
-                cls._dll.get_graph_json.argtypes = [ctypes.c_void_p]
-                cls._dll.get_graph_json.restype = ctypes.c_char_p
+                # Ensure the directory is on the DLL search path (Windows 8+ API)
+                if os.name == 'nt':
+                    try:
+                        os.add_dll_directory(os.path.dirname(dll_path))
+                    except Exception as e:
+                        print(f'[GRAPH] add_dll_directory error: {e}')
+                    if gxx_dir and os.path.isdir(gxx_dir):
+                        try:
+                            os.add_dll_directory(gxx_dir)
+                        except Exception as e:
+                            print(f'[GRAPH] add_dll_directory g++ error: {e}')
+                try:
+                    # Use full absolute path; on Windows ctypes.CDLL will look in PATH for dependencies
+                    cls._dll = ctypes.CDLL(dll_path)
+                except OSError as load_err:
+                    print(f'[GRAPH] Failed to load DLL: {load_err}')
+                    # Print the underlying Windows error for more detail
+                    try:
+                        import ctypes.wintypes as wt
+                        err = ctypes.WinError()
+                        print(f'[GRAPH] WinError: {err}')
+                    except Exception:
+                        pass
+                    cls._dll = None
+                else:
+                    # Setup DLL argument & return types
+                    cls._dll.create_graph.argtypes = []
+                    cls._dll.create_graph.restype = ctypes.c_void_p
+                    cls._dll.free_graph.argtypes = [ctypes.c_void_p]
+                    cls._dll.free_graph.restype = None
+                    cls._dll.add_node.argtypes = [
+                        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_bool,
+                        ctypes.c_bool, ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                        ctypes.c_int, ctypes.c_bool, ctypes.c_char_p, ctypes.c_char_p,
+                    ]
+                    cls._dll.add_node.restype = None
+                    cls._dll.add_edge.argtypes = [
+                        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
+                    ]
+                    cls._dll.add_edge.restype = None
+                    cls._dll.add_model_node.argtypes = [
+                        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+                        ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p
+                    ]
+                    cls._dll.add_model_node.restype = None
+                    cls._dll.add_model_edge.argtypes = [
+                        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p
+                    ]
+                    cls._dll.add_model_edge.restype = None
+                    cls._dll.get_graph_json.argtypes = [ctypes.c_void_p]
+                    cls._dll.get_graph_json.restype = ctypes.c_void_p
+                    # Free function for C-allocated JSON string (prevents memory leak)
+                    cls._dll.free_json_string.argtypes = [ctypes.c_void_p]
+                    cls._dll.free_json_string.restype = None
+            else:
+                print('[GRAPH] DLL not found after compilation attempt.')
+                cls._dll = None
         except Exception as e:
-            print(f"Error loading C++ library: {e}")
+            print(f'[GRAPH] Unexpected error loading C++ library: {e}')
             cls._dll = None
         return cls._dll
 
@@ -193,7 +233,11 @@ class CppGraph:
         if self.handle:
             try:
                 json_bytes = self.dll.get_graph_json(self.handle)
-                return json.loads(json_bytes.decode('utf-8'))
+                if json_bytes is None:
+                    return {"nodes": [], "edges": [], "model_graph": {"nodes": [], "edges": []}}
+                json_str = ctypes.string_at(json_bytes).decode('utf-8')
+                self.dll.free_json_string(json_bytes)  # <-- CRITICAL: free the C++ allocation
+                return json.loads(json_str)
             except Exception as e:
                 print(f"Failed to read JSON from C++ graph core: {e}. Using empty dict.")
                 return {"nodes": [], "edges": [], "model_graph": {"nodes": [], "edges": []}}

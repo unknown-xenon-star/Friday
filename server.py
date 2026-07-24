@@ -49,6 +49,25 @@ def get_config():
         "defaults": defaults
     })
 
+@app.route('/api/files')
+def list_files():
+    """
+    Returns a sorted list of Python files in the workspace directory.
+    """
+    workspace = current_app.config.get('WORKSPACE_DIR', '.')
+    py_files = []
+    
+    abs_workspace = os.path.abspath(workspace)
+    for root, dirs, files in os.walk(abs_workspace):
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('__pycache__', 'venv', 'env', 'node_modules')]
+        for f in files:
+            if f.endswith('.py'):
+                abs_path = os.path.abspath(os.path.join(root, f))
+                rel_path = os.path.relpath(abs_path, abs_workspace).replace(os.sep, '/')
+                py_files.append(rel_path)
+                
+    return jsonify({"files": sorted(py_files)})
+
 @app.route('/api/file-content')
 def get_file_content():
     """

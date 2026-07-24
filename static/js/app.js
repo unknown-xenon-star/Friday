@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { showToast, showBanner, showUpdateToast, logMessage } from './ui.js';
+import { showToast, showBanner, showUpdateToast, logMessage, renderFileExplorer } from './ui.js';
 import { syncWithDisk, parseCodeOnServer, switchActiveFile } from './editor.js';
 import { initializeGraph, updateGraphView, updateGraphViewDebounced, startStabilization, resetHighlight, highlightNodeConnections } from './graph.js';
 
@@ -9,7 +9,7 @@ require(['vs/editor/editor.main'], function () {
     state.editor = monaco.editor.create(document.getElementById('editor-container'), {
         value: '',
         language: 'python',
-        theme: 'vs-dark',
+        theme: 'vs',
         automaticLayout: true,
         fontSize: 14,
         minimap: { enabled: false },
@@ -45,6 +45,9 @@ async function initApp() {
         // Apply defaults from config file
         applyDefaults(state.config.defaults || {});
 
+        // Fetch workspace files list
+        await fetchWorkspaceFiles();
+
         // Load initial code and graph
         await syncWithDisk();
 
@@ -56,9 +59,29 @@ async function initApp() {
 
         // Register event listeners
         registerToolbarListeners();
+
+        // Setup mouse resize dragging splitter
+        setupResizer();
     } catch (err) {
         console.error("Initialization error", err);
         showBanner("Connection failed to Python backend. Is the server running?", "error");
+    }
+}
+
+async function fetchWorkspaceFiles() {
+    try {
+        const res = await fetch('/api/files');
+        const data = await res.json();
+        state.files = data.files || [];
+        state.filteredFiles = [...state.files];
+        
+        const folderName = state.config.workspace_dir ? state.config.workspace_dir.split(/[\\/]/).pop() : 'Friday';
+        document.getElementById('explorer-workspace-path').textContent = folderName;
+        
+        const ui = await import('./ui.js');
+        ui.renderFileExplorer();
+    } catch (err) {
+        console.error("Error fetching workspace files", err);
     }
 }
 
@@ -284,8 +307,18 @@ function registerToolbarListeners() {
         }
     });
 
+    // File Explorer filter search handler
+    document.getElementById('explorer-search-input').addEventListener('input', function (e) {
+        const query = e.target.value.toLowerCase().trim();
+        state.filteredFiles = state.files.filter(f => f.toLowerCase().includes(query));
+        renderFileExplorer();
+    });
+
     // Activity Bar Tab - Explorer Layout
     document.getElementById('btn-tab-explorer').addEventListener('click', function() {
+        const sidebar = document.getElementById('explorer-sidebar');
+        const isAnalyticsActive = document.getElementById('btn-tab-analytics').classList.contains('active');
+        
         document.getElementById('btn-tab-explorer').classList.add('active');
         document.getElementById('btn-tab-analytics').classList.remove('active');
         
@@ -295,12 +328,27 @@ function registerToolbarListeners() {
         const consoleBar = document.getElementById('bottom-console');
         consoleBar.classList.remove('open');
         state.isConsoleOpen = false;
-        showToast("📂 Switched to Workspace layout");
+        
+        if (isAnalyticsActive) {
+            sidebar.classList.remove('collapsed');
+            state.isExplorerOpen = true;
+            showToast("📂 Switched to Workspace layout");
+        } else {
+            state.isExplorerOpen = !state.isExplorerOpen;
+            if (state.isExplorerOpen) {
+                sidebar.classList.remove('collapsed');
+                showToast("📂 Opened Explorer Sidebar");
+            } else {
+                sidebar.classList.add('collapsed');
+                showToast("🧹 Collapsed Explorer Sidebar");
+            }
+        }
     });
 
     // Activity Bar Tab - Analytics Layout
     document.getElementById('btn-tab-analytics').addEventListener('click', function() {
         document.getElementById('btn-tab-explorer').classList.remove('active');
+        document.getElementById('btn-tab-editor').classList.remove('active');
         document.getElementById('btn-tab-analytics').classList.add('active');
         
         const workspace = document.getElementById('workspace-splitter');
@@ -310,8 +358,44 @@ function registerToolbarListeners() {
         consoleBar.classList.add('open');
         state.isConsoleOpen = true;
         
+        // Collapse explorer sidebar in analytics mode
+        const sidebar = document.getElementById('explorer-sidebar');
+        sidebar.classList.add('collapsed');
+        state.isExplorerOpen = false;
+        
         document.getElementById('tab-health').click();
         showToast("📊 Switched to Analytics & Health layout");
+    });
+
+    // Activity Bar Tab - Toggle Editor Layout
+    document.getElementById('btn-tab-editor').addEventListener('click', function() {
+        const leftPanel = document.getElementById('left-panel');
+        const workspace = document.getElementById('workspace-splitter');
+        const btn = document.getElementById('btn-tab-editor');
+        
+        const isCurrentlyHidden = workspace.classList.contains('maximized-graph') || leftPanel.style.display === 'none';
+        
+        if (isCurrentlyHidden) {
+            // Restore editor
+            workspace.classList.remove('maximized-graph');
+            leftPanel.style.display = 'flex';
+            btn.classList.add('active');
+            showToast("💻 Restored Code Editor panel");
+        } else {
+            // Hide editor
+            workspace.classList.add('maximized-graph');
+            leftPanel.style.display = 'none';
+            btn.classList.remove('active');
+            showToast("🔍 Maximized Call Graph canvas");
+        }
+        
+        // Recalculate layout
+        if (state.editor) state.editor.layout();
+        if (state.network) {
+            state.network.setSize('100%', '100%');
+            state.network.redraw();
+            state.network.fit();
+        }
     });
 
     // Activity Bar Bottom - Toggle Console Icon
@@ -322,24 +406,48 @@ function registerToolbarListeners() {
     // Maximize Editor (Hide Graph) toggle
     document.getElementById('btn-editor-split').addEventListener('click', function() {
         const workspace = document.getElementById('workspace-splitter');
+        const leftPanel = document.getElementById('left-panel');
+        const editorBtn = document.getElementById('btn-tab-editor');
+        
         if (workspace.classList.contains('maximized-graph')) {
             workspace.className = 'workspace-area';
+            leftPanel.style.display = 'flex';
+            editorBtn.classList.add('active');
             showToast("🖥️ Split-screen mode");
         } else {
             workspace.className = 'workspace-area maximized-graph';
+            leftPanel.style.display = 'none';
+            editorBtn.classList.remove('active');
             showToast("🔍 Expanded call graph canvas");
+        }
+        if (state.editor) state.editor.layout();
+        if (state.network) {
+            state.network.setSize('100%', '100%');
+            state.network.redraw();
         }
     });
 
     // Maximize Graph (Hide Editor) toggle
     document.getElementById('btn-graph-split').addEventListener('click', function() {
         const workspace = document.getElementById('workspace-splitter');
+        const leftPanel = document.getElementById('left-panel');
+        const editorBtn = document.getElementById('btn-tab-editor');
+        
         if (workspace.classList.contains('maximized-editor')) {
             workspace.className = 'workspace-area';
+            leftPanel.style.display = 'flex';
+            editorBtn.classList.add('active');
             showToast("🖥️ Split-screen mode");
         } else {
             workspace.className = 'workspace-area maximized-editor';
+            leftPanel.style.display = 'flex';
+            editorBtn.classList.add('active');
             showToast("🔍 Expanded code editor panel");
+        }
+        if (state.editor) state.editor.layout();
+        if (state.network) {
+            state.network.setSize('100%', '100%');
+            state.network.redraw();
         }
     });
 
@@ -436,4 +544,72 @@ function applyDefaults(defaults) {
         state.activeColorMode = defaults.color_mode;
         document.getElementById('color-mode-select').value = defaults.color_mode;
     }
+}
+
+function setupResizer() {
+    const resizer = document.getElementById('resizer-v');
+    const leftPanel = document.getElementById('left-panel');
+    const rightPanel = document.getElementById('right-panel');
+    const container = document.getElementById('workspace-splitter');
+    
+    if (!resizer || !leftPanel || !rightPanel) return;
+    
+    let isDragging = false;
+    
+    resizer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        resizer.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const containerRect = container.getBoundingClientRect();
+        const leftWidth = e.clientX - containerRect.left;
+        const containerWidth = containerRect.width;
+        
+        const minWidth = containerWidth * 0.15;
+        const maxWidth = containerWidth * 0.85;
+        
+        let newLeftWidth = Math.max(minWidth, Math.min(maxWidth, leftWidth));
+        
+        leftPanel.style.flex = 'none';
+        leftPanel.style.width = `${newLeftWidth}px`;
+        rightPanel.style.flex = '1';
+        
+        if (state.editor) {
+            state.editor.layout();
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            resizer.classList.remove('dragging');
+            document.body.style.cursor = 'default';
+            document.body.style.userSelect = '';
+            
+            if (state.network) {
+                state.network.setSize('100%', '100%');
+                state.network.redraw();
+                state.network.fit();
+            }
+        }
+    });
+    
+    resizer.addEventListener('dblclick', () => {
+        leftPanel.style.flex = 'none';
+        leftPanel.style.width = '45%';
+        rightPanel.style.flex = '1';
+        if (state.editor) state.editor.layout();
+        if (state.network) {
+            state.network.setSize('100%', '100%');
+            state.network.redraw();
+            state.network.fit();
+        }
+        showToast("🖥️ Reset workspace split to 45:55");
+    });
 }

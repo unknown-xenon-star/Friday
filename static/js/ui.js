@@ -264,8 +264,18 @@ export function updateConsoleHealth(graphData) {
     warnings.forEach((w, idx) => {
         document.getElementById(`warning-jump-btn-${idx}`).addEventListener('click', async () => {
             const { switchActiveFile } = await import('./editor.js');
-            switchActiveFile(w.node.filepath, w.node.lineno);
+            await switchActiveFile(w.node.filepath, w.node.lineno);
             updateInspector(w.node);
+            
+            if (state.network && w.node.id) {
+                state.network.focus(w.node.id, {
+                    scale: 1.2,
+                    animation: { duration: 600, easingFunction: 'easeInOutQuad' }
+                });
+                state.network.selectNodes([w.node.id]);
+                const { highlightNodeConnections } = await import('./graph.js');
+                highlightNodeConnections(w.node.id);
+            }
         });
     });
 }
@@ -319,4 +329,56 @@ export function logMessage(message, type = 'info') {
     }
     
     stream.scrollTop = stream.scrollHeight;
+}
+
+export function isSamePath(pathA, pathB) {
+    if (!pathA || !pathB) return false;
+    const clean = p => p.toLowerCase()
+                        .replace(/\\/g, '/')
+                        .replace(/^\.\//, '')
+                        .replace(/^\//, '');
+    const a = clean(pathA);
+    const b = clean(pathB);
+    return a === b || a.endsWith('/' + b) || b.endsWith('/' + a);
+}
+
+export function renderFileExplorer() {
+    const listContainer = document.getElementById('explorer-file-list');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '';
+    
+    if (state.filteredFiles.length === 0) {
+        listContainer.innerHTML = `<div style="padding: 1rem; font-size: 0.78rem; color: var(--text-secondary); text-align: center;">No python files found</div>`;
+        return;
+    }
+
+    state.filteredFiles.forEach(file => {
+        const item = document.createElement('div');
+        const isActive = isSamePath(file, state.activeFile);
+        item.className = `explorer-file-item ${isActive ? 'active' : ''}`;
+        
+        // Crisp file SVG icon
+        item.innerHTML = `
+            <svg class="explorer-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.split('/').pop()}</span>
+        `;
+        
+        item.title = file; // Full path on hover
+        
+        item.addEventListener('click', async () => {
+            if (!isSamePath(file, state.activeFile)) {
+                const editorMod = await import('./editor.js');
+                await editorMod.switchActiveFile(file);
+                // Highlight item
+                document.querySelectorAll('.explorer-file-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+            }
+        });
+        
+        listContainer.appendChild(item);
+    });
 }
