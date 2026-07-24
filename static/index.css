@@ -229,12 +229,17 @@ body {
 }
 
 .explorer-file-item.active {
-    background-color: var(--bg-surface-hover);
-    color: var(--text-primary);
+    background-color: rgba(99, 102, 241, 0.08);
+    color: var(--accent-color);
     font-weight: 600;
-    border-left: 2px solid var(--text-primary);
-    padding-left: calc(1rem - 2px);
+    border-left: 3px solid var(--accent-color);
+    padding-left: calc(1rem - 3px);
 }
+
+.explorer-file-item.active .explorer-file-icon {
+    color: var(--accent-color);
+}
+
 
 .explorer-file-icon {
     width: 14px;
